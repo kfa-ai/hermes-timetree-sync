@@ -76,6 +76,15 @@ uv sync --dev
 uv run pytest
 ```
 
+Early read-only commands:
+
+```bash
+uv run hermes-timetree-sync doctor
+uv run hermes-timetree-sync list-calendars
+```
+
+If your TimeTree account is tied to Apple login, use a browser session cookie rather than Apple credentials. See [`docs/apple-login.md`](docs/apple-login.md).
+
 ## Security
 
 Do not commit:
