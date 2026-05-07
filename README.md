@@ -83,7 +83,7 @@ uv run hermes-timetree-sync doctor
 uv run hermes-timetree-sync list-calendars
 ```
 
-If your TimeTree account is tied to Apple login, use a browser session cookie rather than Apple credentials. See [`docs/apple-login.md`](docs/apple-login.md).
+If your TimeTree account uses Apple login, a browser session cookie can be used rather than Apple credentials. If you have a normal username/password, use the `sign-in` command. See [`docs/authentication.md`](docs/authentication.md).
 
 ## Security
 

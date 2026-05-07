@@ -22,4 +22,6 @@ uv sync --dev
 uv run ruff check .
 uv run pytest
 uv run hermes-timetree-sync doctor
+uv run hermes-timetree-sync sign-in
+uv run hermes-timetree-sync list-calendars
 ```
