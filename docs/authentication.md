@@ -18,7 +18,12 @@ Then Hermes can use commands such as:
 ```bash
 uv run hermes-timetree-sync list-calendars
 uv run hermes-timetree-sync create-all-day --title "Day off" --date 2026-05-18
+uv run hermes-timetree-sync create-all-day-batch \
+  --event "2026-05-18|Day off" \
+  --event "2026-05-25|Public holiday"
 ```
+
+Prefer `create-all-day-batch` when a Hermes request contains multiple events. It creates each event with a single shared current-user lookup, which makes chat-driven writes faster and avoids repeated `/api/v1/user` calls.
 
 If the session expires, refresh the stored session outside chat and rerun `doctor`/`list-calendars` to validate it.
 

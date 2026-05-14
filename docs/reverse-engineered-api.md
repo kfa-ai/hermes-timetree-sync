@@ -215,9 +215,11 @@ Minimal all-day schedule body that succeeded:
 Notes:
 - For a single-day all-day event, TimeTree uses the same UTC-midnight timestamp for `start_at` and `end_at`.
 - `attendees` should include the current user ID from `GET /api/v1/user`; do not hard-code the example ID above.
+- The current-user `id` may be returned as either a JSON string or number. Hermes-facing helpers stringify numeric IDs before putting them in `attendees`.
 - Response shape was `{ "event": {...}, "rebalanced": ... }`.
 - Creation was verified by reading back `/events/sync` and matching title/date/all-day fields.
 - Library create/update helpers can apply a YAML-driven TimeTree label policy by adding `label_id` from an explicit category or inferred title/note.
+- `create-all-day-batch` is a local CLI batching helper, not a separate TimeTree batch endpoint. It performs one current-user lookup and then one `POST /event` per requested all-day event.
 
 ### Label policy
 
