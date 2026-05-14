@@ -4,6 +4,8 @@ from typing import Any
 
 import httpx
 
+from hermes_timetree_sync.timetree_labels import LabelPolicy, apply_label_policy
+
 
 class TimeTreeClientError(RuntimeError):
     """Raised when TimeTree returns an unexpected response."""
@@ -16,12 +18,14 @@ class TimeTreeClient:
         session_cookie: str,
         base_url: str = "https://timetreeapp.com",
         http_client: httpx.Client | None = None,
+        label_policy: LabelPolicy | None = None,
     ) -> None:
         if not session_cookie:
             raise ValueError("session_cookie is required")
         self._session_cookie = session_cookie
         self._base_url = base_url.rstrip("/")
         self._client = http_client or httpx.Client(timeout=30)
+        self._label_policy = label_policy
 
     def list_calendars(self) -> list[dict[str, Any]]:
         payload = self._get("/api/v1/calendars", params={"since": 0})
@@ -32,7 +36,10 @@ class TimeTreeClient:
 
     def list_labels(self, calendar_id: str) -> list[dict[str, Any]]:
         payload = self._get(f"/api/v1/calendar/{calendar_id}/labels")
-        labels = payload.get("labels", [])
+        # Current TimeTree web payload uses `calendar_labels`; older community
+        # clients have sometimes referred to this collection generically as
+        # `labels`, so accept both while preferring the live web key.
+        labels = payload.get("calendar_labels", payload.get("labels", []))
         if not isinstance(labels, list):
             raise TimeTreeClientError("unexpected labels payload")
         return labels
@@ -41,8 +48,53 @@ class TimeTreeClient:
         params = {"since": since} if since is not None else None
         return self._get(f"/api/v1/calendar/{calendar_id}/events/sync", params=params)
 
+    def create_event(
+        self,
+        calendar_id: str,
+        payload: dict[str, Any],
+        *,
+        category: str | None = None,
+        apply_colour_policy: bool = True,
+    ) -> dict[str, Any]:
+        body = (
+            apply_label_policy(payload, category=category, policy=self._label_policy)
+            if apply_colour_policy
+            else payload
+        )
+        return self._request("POST", f"/api/v1/calendar/{calendar_id}/event", json=body)
+
+    def update_event(
+        self,
+        calendar_id: str,
+        event_id: str,
+        payload: dict[str, Any],
+        *,
+        category: str | None = None,
+        apply_colour_policy: bool = True,
+    ) -> dict[str, Any]:
+        body = (
+            apply_label_policy(payload, category=category, policy=self._label_policy)
+            if apply_colour_policy
+            else payload
+        )
+        return self._request("PUT", f"/api/v1/calendar/{calendar_id}/event/{event_id}", json=body)
+
+    def delete_event(self, calendar_id: str, event_id: str) -> dict[str, Any]:
+        return self._request("DELETE", f"/api/v1/calendar/{calendar_id}/event/{event_id}")
+
     def _get(self, path: str, *, params: dict[str, object] | None = None) -> dict[str, Any]:
-        response = self._client.get(
+        return self._request("GET", path, params=params)
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, object] | None = None,
+        json: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        response = self._client.request(
+            method,
             f"{self._base_url}{path}",
             params=params,
             headers={
@@ -50,6 +102,7 @@ class TimeTreeClient:
                 "Cookie": f"_session_id={self._session_cookie}",
                 "Accept": "application/json",
             },
+            json=json,
         )
         try:
             response.raise_for_status()

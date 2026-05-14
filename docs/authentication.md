@@ -4,6 +4,8 @@ The bridge supports two early authentication paths.
 
 ## Option A — email/password
 
+Status: the current TimeTree web bundle still contains `PUT /api/v1/auth/email/signin`, but a May 2026 live replay with a known-good password returned HTTP 400 / internal code `-403` even with a fresh `/signin` CSRF token and session cookie. Prefer Option B until this direct login flow is understood.
+
 If your TimeTree account has a normal username/password, configure these locally:
 
 ```env

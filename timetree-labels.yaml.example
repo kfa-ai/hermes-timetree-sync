@@ -1,0 +1,32 @@
+# Copy this file to timetree-labels.yaml and edit for your own calendar.
+# timetree-labels.yaml is local-only and ignored by git.
+#
+# label_id values come from TimeTree's labels endpoint:
+#   GET /api/v1/calendar/{calendar_id}/labels
+#
+# Each rule can be used explicitly by category, or inferred when any term is
+# present in an event title/note. Rule order matters: first matching rule wins.
+
+rules:
+  - category: example-medical
+    colour: blue
+    label_id: 3
+    terms:
+      - doctor
+      - dentist
+      - clinic
+
+  - category: example-holiday
+    colour: green
+    label_id: 1
+    terms:
+      - vacation
+      - holiday
+      - annual leave
+
+  - category: example-personal
+    colour: black
+    label_id: 5
+    terms:
+      - day off
+      - personal day
