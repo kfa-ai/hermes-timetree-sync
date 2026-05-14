@@ -23,6 +23,20 @@ def test_parser_accepts_create_all_day_command() -> None:
     assert args.date == "2026-05-18"
 
 
+def test_parser_accepts_create_all_day_batch_command() -> None:
+    args = build_parser().parse_args(
+        [
+            "create-all-day-batch",
+            "--event",
+            "2026-05-18|Day off",
+            "--event",
+            "2026-05-19|Team planning",
+        ]
+    )
+    assert args.command == "create-all-day-batch"
+    assert args.event == ["2026-05-18|Day off", "2026-05-19|Team planning"]
+
+
 def test_parser_accepts_sign_in_command() -> None:
     args = build_parser().parse_args(["sign-in"])
     assert args.command == "sign-in"
@@ -99,6 +113,70 @@ def test_create_all_day_posts_safe_default_payload(monkeypatch, capsys) -> None:
 
     assert exit_code == 0
     assert json.loads(capsys.readouterr().out) == {"event": {"id": "evt_1", "title": "Day off"}}
+
+
+def test_create_all_day_accepts_numeric_current_user_id(monkeypatch, capsys) -> None:
+    monkeypatch.setenv("TIMETREE_SESSION_COOKIE", "secret-cookie")
+    monkeypatch.setenv("TIMETREE_CALENDAR_ID", "cal_1")
+
+    class FakeClient:
+        def __init__(self, *, session_cookie: str) -> None:
+            assert session_cookie == "secret-cookie"
+
+        def get_current_user(self) -> dict[str, object]:
+            return {"id": 123456}
+
+        def create_event(self, calendar_id: str, payload: dict[str, object]) -> dict[str, object]:
+            assert payload["attendees"] == ["123456"]
+            return {"event": {"id": "evt_1", "title": payload["title"]}}
+
+    monkeypatch.setattr(cli, "TimeTreeClient", FakeClient)
+
+    exit_code = cli.main(["create-all-day", "--title", "Day off", "--date", "2026-05-18"])
+
+    assert exit_code == 0
+    assert json.loads(capsys.readouterr().out) == {"event": {"id": "evt_1", "title": "Day off"}}
+
+
+def test_create_all_day_batch_reuses_user_lookup_for_multiple_events(monkeypatch, capsys) -> None:
+    monkeypatch.setenv("TIMETREE_SESSION_COOKIE", "secret-cookie")
+    monkeypatch.setenv("TIMETREE_CALENDAR_ID", "cal_1")
+    created: list[dict[str, object]] = []
+    user_lookups = 0
+
+    class FakeClient:
+        def __init__(self, *, session_cookie: str) -> None:
+            assert session_cookie == "secret-cookie"
+
+        def get_current_user(self) -> dict[str, object]:
+            nonlocal user_lookups
+            user_lookups += 1
+            return {"id": 123456}
+
+        def create_event(self, calendar_id: str, payload: dict[str, object]) -> dict[str, object]:
+            assert calendar_id == "cal_1"
+            created.append(payload)
+            return {"event": {"id": f"evt_{len(created)}", "title": payload["title"]}}
+
+    monkeypatch.setattr(cli, "TimeTreeClient", FakeClient)
+
+    exit_code = cli.main(
+        [
+            "create-all-day-batch",
+            "--event",
+            "2026-05-18|Day off",
+            "--event",
+            "2026-05-19|Team planning",
+        ]
+    )
+
+    assert exit_code == 0
+    assert user_lookups == 1
+    assert [event["title"] for event in created] == ["Day off", "Team planning"]
+    assert [event["attendees"] for event in created] == [["123456"], ["123456"]]
+    assert json.loads(capsys.readouterr().out) == {
+        "events": [{"id": "evt_1", "title": "Day off"}, {"id": "evt_2", "title": "Team planning"}]
+    }
 
 
 def test_create_all_day_requires_noninteractive_auth_and_calendar(monkeypatch, capsys) -> None:

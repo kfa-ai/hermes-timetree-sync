@@ -25,6 +25,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     create.add_argument("--title", required=True, help="Event title, e.g. Day off.")
     create.add_argument("--date", required=True, help="Event date as YYYY-MM-DD.")
+
+    batch = subparsers.add_parser(
+        "create-all-day-batch",
+        help="Create multiple all-day TimeTree events with one user lookup.",
+    )
+    batch.add_argument(
+        "--event",
+        action="append",
+        required=True,
+        help="Event as YYYY-MM-DD|Title. Repeat for multiple events.",
+    )
     return parser
 
 
@@ -56,7 +67,7 @@ def list_calendars() -> int:
     return 0
 
 
-def create_all_day(*, title: str, event_date: str) -> int:
+def _require_write_config() -> tuple[str, str] | None:
     settings = load_settings()
     missing = []
     if not settings.timetree_session_cookie:
@@ -68,17 +79,72 @@ def create_all_day(*, title: str, event_date: str) -> int:
             f"{', '.join(missing)} required for non-interactive TimeTree writes.",
             file=sys.stderr,
         )
-        return 2
+        return None
+    assert settings.timetree_session_cookie is not None
+    assert settings.timetree_calendar_id is not None
+    return settings.timetree_session_cookie, settings.timetree_calendar_id
 
-    client = TimeTreeClient(session_cookie=settings.timetree_session_cookie)
+
+def _current_user_id(client: TimeTreeClient) -> str | None:
     current_user = client.get_current_user()
     user_id = current_user.get("id")
-    if not isinstance(user_id, str) or not user_id:
+    if isinstance(user_id, int):
+        return str(user_id)
+    if isinstance(user_id, str) and user_id:
+        return user_id
+    return None
+
+
+def create_all_day(*, title: str, event_date: str) -> int:
+    config = _require_write_config()
+    if config is None:
+        return 2
+    session_cookie, calendar_id = config
+
+    client = TimeTreeClient(session_cookie=session_cookie)
+    user_id = _current_user_id(client)
+    if not user_id:
         print("Could not determine current TimeTree user id.", file=sys.stderr)
         return 1
 
     payload = build_all_day_event_payload(title=title, event_date=event_date, attendee_id=user_id)
-    print_json(client.create_event(settings.timetree_calendar_id, payload))
+    print_json(client.create_event(calendar_id, payload))
+    return 0
+
+
+def parse_batch_event(raw_event: str) -> tuple[str, str]:
+    event_date, separator, title = raw_event.partition("|")
+    if not separator or not event_date.strip() or not title.strip():
+        raise ValueError("batch events must use YYYY-MM-DD|Title")
+    date.fromisoformat(event_date.strip())
+    return event_date.strip(), title.strip()
+
+
+def create_all_day_batch(raw_events: Sequence[str]) -> int:
+    config = _require_write_config()
+    if config is None:
+        return 2
+    session_cookie, calendar_id = config
+
+    try:
+        events = [parse_batch_event(raw_event) for raw_event in raw_events]
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    client = TimeTreeClient(session_cookie=session_cookie)
+    user_id = _current_user_id(client)
+    if not user_id:
+        print("Could not determine current TimeTree user id.", file=sys.stderr)
+        return 1
+
+    created: list[dict[str, Any]] = []
+    for event_date, title in events:
+        payload = build_all_day_event_payload(title=title, event_date=event_date, attendee_id=user_id)
+        response = client.create_event(calendar_id, payload)
+        event = response.get("event") if isinstance(response, dict) else None
+        created.append(event if isinstance(event, dict) else response)
+    print_json({"events": created})
     return 0
 
 
@@ -139,6 +205,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return list_calendars()
     if args.command == "create-all-day":
         return create_all_day(title=args.title, event_date=args.date)
+    if args.command == "create-all-day-batch":
+        return create_all_day_batch(args.event)
     parser.error(f"unsupported command: {args.command}")
     return 2
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.1.1 - 2026-05-15
+
+Small speed/reliability release for Hermes calendar writes.
+
+### Added
+
+- `create-all-day-batch` CLI command to create multiple all-day events with one current-user lookup.
+
+### Fixed
+
+- Accept numeric TimeTree current-user IDs and stringify them when building event attendees.
+- Added regression coverage for batch event creation and numeric current-user IDs.
+
 ## v0.1.0 - 2026-05-14
 
 Initial release of the Hermes TimeTree bridge.
