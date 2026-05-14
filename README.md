@@ -67,6 +67,24 @@ Public calendars:
 https://timetreeapp.com/api/v2/public_calendars/{calendar_id}/public_events
 ```
 
+## TimeTree label policy
+
+Create/update helpers can set `label_id` from a local YAML policy instead of hard-coding calendar-specific terms in code.
+
+1. Copy the example:
+
+   ```bash
+   cp timetree-labels.yaml.example timetree-labels.yaml
+   ```
+
+2. Edit `timetree-labels.yaml` with your calendar's label IDs and matching terms. The local file is ignored by git.
+
+3. Optionally point at a different file:
+
+   ```bash
+   export TIMETREE_LABEL_POLICY_FILE=/path/to/timetree-labels.yaml
+   ```
+
 ## Development
 
 This repo starts as a Python CLI/library.
@@ -75,6 +93,16 @@ This repo starts as a Python CLI/library.
 uv sync --dev
 uv run pytest
 ```
+
+Early commands:
+
+```bash
+uv run hermes-timetree-sync doctor
+uv run hermes-timetree-sync list-calendars
+uv run hermes-timetree-sync create-all-day --title "Day off" --date 2026-05-18
+```
+
+Hermes-facing usage is non-interactive: once `TIMETREE_SESSION_COOKIE` and `TIMETREE_CALENDAR_ID` are configured, Hermes can translate a request like “add Day off on May 18” into the CLI call above without visiting the TimeTree UI. See [`docs/authentication.md`](docs/authentication.md).
 
 ## Security
 
