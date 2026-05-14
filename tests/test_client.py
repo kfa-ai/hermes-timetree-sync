@@ -94,6 +94,23 @@ def test_list_labels_accepts_legacy_labels_key() -> None:
     assert labels == [{"id": "lbl_1", "name": "Kids"}]
 
 
+def test_get_current_user_fetches_user_endpoint() -> None:
+    seen_url = ""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal seen_url
+        seen_url = str(request.url)
+        return json_response({"user": {"id": "user_1", "name": "Example User"}})
+
+    transport = httpx.MockTransport(handler)
+    client = TimeTreeClient(session_cookie="secret-cookie", http_client=httpx.Client(transport=transport))
+
+    user = client.get_current_user()
+
+    assert seen_url == "https://timetreeapp.com/api/v1/user"
+    assert user == {"id": "user_1", "name": "Example User"}
+
+
 def test_http_errors_are_wrapped_without_leaking_cookie() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(401, json={"error": "unauthorized"}, request=request)

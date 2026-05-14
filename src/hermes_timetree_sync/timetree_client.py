@@ -44,6 +44,13 @@ class TimeTreeClient:
             raise TimeTreeClientError("unexpected labels payload")
         return labels
 
+    def get_current_user(self) -> dict[str, Any]:
+        payload = self._get("/api/v1/user")
+        user = payload.get("user", payload)
+        if not isinstance(user, dict):
+            raise TimeTreeClientError("unexpected user payload")
+        return user
+
     def sync_events(self, calendar_id: str, *, since: int | None = None) -> dict[str, Any]:
         params = {"since": since} if since is not None else None
         return self._get(f"/api/v1/calendar/{calendar_id}/events/sync", params=params)

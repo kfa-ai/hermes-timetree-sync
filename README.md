@@ -94,14 +94,15 @@ uv sync --dev
 uv run pytest
 ```
 
-Early read-only commands:
+Early commands:
 
 ```bash
 uv run hermes-timetree-sync doctor
 uv run hermes-timetree-sync list-calendars
+uv run hermes-timetree-sync create-all-day --title "Day off" --date 2026-05-18
 ```
 
-If your TimeTree account uses Apple login, a browser session cookie can be used rather than Apple credentials. If you have a normal username/password, use the `sign-in` command. See [`docs/authentication.md`](docs/authentication.md).
+Hermes-facing usage is non-interactive: once `TIMETREE_SESSION_COOKIE` and `TIMETREE_CALENDAR_ID` are configured, Hermes can translate a request like “add Day off on May 18” into the CLI call above without visiting the TimeTree UI. See [`docs/authentication.md`](docs/authentication.md).
 
 ## Security
 
