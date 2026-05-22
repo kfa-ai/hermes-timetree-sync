@@ -37,6 +37,28 @@ def test_parser_accepts_create_all_day_batch_command() -> None:
     assert args.event == ["2026-05-18|Day off", "2026-05-19|Team planning"]
 
 
+def test_parser_accepts_create_timed_command() -> None:
+    args = build_parser().parse_args(
+        [
+            "create-timed",
+            "--title",
+            "Lynsey out",
+            "--start",
+            "2026-05-24T12:00",
+            "--end",
+            "2026-05-24T18:00",
+            "--category",
+            "lynsey",
+        ]
+    )
+    assert args.command == "create-timed"
+    assert args.title == "Lynsey out"
+    assert args.start == "2026-05-24T12:00"
+    assert args.end == "2026-05-24T18:00"
+    assert args.timezone == "Australia/Melbourne"
+    assert args.category == "lynsey"
+
+
 def test_parser_accepts_sign_in_command() -> None:
     args = build_parser().parse_args(["sign-in"])
     assert args.command == "sign-in"
@@ -219,3 +241,116 @@ def test_sign_in_requires_email_and_password_without_printing_secret(monkeypatch
     err = capsys.readouterr().err
     assert "TIMETREE_EMAIL" in err
     assert "TIMETREE_PASSWORD" in err
+
+
+def test_build_timed_event_payload_uses_local_timezone_and_label_policy(monkeypatch, tmp_path) -> None:
+    policy = tmp_path / "labels.yaml"
+    policy.write_text("rules:\n  - category: lynsey\n    label_id: 10\n", encoding="utf-8")
+    monkeypatch.setenv("TIMETREE_LABEL_POLICY_FILE", str(policy))
+
+    payload = cli.build_timed_event_payload(
+        title="Lynsey out",
+        start="2026-05-24T12:00",
+        end="2026-05-24T18:00",
+        timezone="Australia/Melbourne",
+        attendee_id="user_1",
+        category="lynsey",
+    )
+
+    assert payload["all_day"] is False
+    assert payload["start_at"] == 1779588000000
+    assert payload["end_at"] == 1779609600000
+    assert payload["start_timezone"] == "Australia/Melbourne"
+    assert payload["end_timezone"] == "Australia/Melbourne"
+    assert payload["attendees"] == ["user_1"]
+    assert payload["label_id"] == 10
+
+
+def test_build_timed_event_payload_rejects_end_before_start() -> None:
+    try:
+        cli.build_timed_event_payload(
+            title="Bad",
+            start="2026-05-24T18:00",
+            end="2026-05-24T12:00",
+        )
+    except ValueError as exc:
+        assert "end must be after start" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("expected ValueError")
+
+
+def test_create_timed_uses_safari_path_and_verifies(monkeypatch, capsys) -> None:
+    monkeypatch.setenv("TIMETREE_SESSION_COOKIE", "secret-cookie")
+    monkeypatch.setenv("TIMETREE_CALENDAR_ID", "cal_1")
+
+    calls: list[dict[str, object]] = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append({"cmd": cmd, "kwargs": kwargs})
+        if cmd == ["osascript"]:
+            class Completed:
+                stdout = json.dumps(
+                    {
+                        "ok": True,
+                        "verified": True,
+                        "event": {
+                            "id": "evt_1",
+                            "title": "Lynsey out",
+                            "start_at": 1779588000000,
+                            "end_at": 1779609600000,
+                            "all_day": False,
+                            "label_id": None,
+                        },
+                    }
+                )
+            return Completed()
+
+        class Completed:
+            stdout = ""
+        return Completed()
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+
+    exit_code = cli.main(
+        [
+            "create-timed",
+            "--title",
+            "Lynsey out",
+            "--start",
+            "2026-05-24T12:00",
+            "--end",
+            "2026-05-24T18:00",
+        ]
+    )
+
+    assert exit_code == 0
+    assert calls[0]["cmd"][0:2] == ["osascript", "-e"]
+    assert calls[1]["cmd"] == ["osascript"]
+    script = calls[1]["kwargs"]["input"]
+    assert "window.__hermesTimedCreateResult" in script
+    assert "credentials:'include'" in script
+    assert "1779588000000" in script
+    assert json.loads(capsys.readouterr().out) == {
+        "event": {
+            "all_day": False,
+            "end_at": 1779609600000,
+            "id": "evt_1",
+            "label_id": None,
+            "start_at": 1779588000000,
+            "title": "Lynsey out",
+        },
+        "source": "safari",
+        "verified": True,
+    }
+
+
+def test_create_timed_requires_calendar_config(monkeypatch, capsys) -> None:
+    monkeypatch.setenv("TIMETREE_SESSION_COOKIE", "secret-cookie")
+    monkeypatch.delenv("TIMETREE_CALENDAR_ID", raising=False)
+
+    exit_code = cli.main(
+        ["create-timed", "--title", "Lynsey out", "--start", "2026-05-24T12:00", "--end", "2026-05-24T18:00"]
+    )
+
+    assert exit_code == 2
+    assert "TIMETREE_CALENDAR_ID" in capsys.readouterr().err

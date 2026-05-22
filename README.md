@@ -33,7 +33,7 @@ Hermes should translate that request into a TimeTree write using locally stored 
 | Discovery | List calendars and labels |
 | Reads | Sync calendar events through TimeTree's web sync endpoint |
 | Writes | Create, update, and delete events through guarded client methods |
-| Hermes UX | Non-interactive all-day event creation, including batch writes |
+| Hermes UX | Non-interactive all-day event creation, batch writes, and Safari-backed timed event creation |
 | Labels | Optional local YAML policy for mapping terms/categories to TimeTree labels |
 | Safety | Redacted docs/tests, low-volume API usage, mocked HTTP coverage |
 
@@ -107,6 +107,18 @@ uv run hermes-timetree-sync create-all-day-batch \
 
 The batch command was added in `v0.1.1` for faster Hermes calendar writes. It also includes regression coverage for TimeTree accounts whose `/api/v1/user` ID is returned as a number rather than a string.
 
+Create one timed event through Safari's authenticated TimeTree page context:
+
+```bash
+uv run hermes-timetree-sync create-timed \
+  --title "Lynsey out" \
+  --start 2026-05-24T12:00 \
+  --end 2026-05-24T18:00 \
+  --category lynsey
+```
+
+`create-timed` requires Safari to already be logged into TimeTree with Develop → Allow JavaScript from Apple Events enabled. It opens the target TimeTree calendar, posts a timed `all_day: false` event with browser `credentials: include`, then verifies the created event through `/events/sync`. This path exists because direct non-browser writes with only `_session_id` can return HTTP 422 even when browser-context writes succeed.
+
 ## Hermes integration model
 
 This package is intentionally UI-free at runtime:
@@ -114,9 +126,9 @@ This package is intentionally UI-free at runtime:
 1. A local setup/bootstrap step stores or refreshes `TIMETREE_SESSION_COOKIE` and `TIMETREE_CALENDAR_ID` outside chat.
 2. Hermes parses a natural-language calendar request into structured event data.
 3. Hermes calls this CLI/client directly.
-4. The TimeTree UI is not opened during the user request.
+4. For all-day events, the TimeTree UI is not opened during the user request. Timed events currently use Safari page-context execution because the direct replay path is unreliable for writes.
 
-For multiple requested events, Hermes-facing wrappers should prefer `create-all-day-batch` so the current TimeTree user is fetched once and reused for all event attendees.
+For multiple requested all-day events, Hermes-facing wrappers should prefer `create-all-day-batch` so the current TimeTree user is fetched once and reused for all event attendees. For timed events, wrappers should prefer `create-timed` rather than embedding Safari JavaScript locally.
 
 ## Label policy
 

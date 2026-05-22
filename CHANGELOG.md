@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `create-timed` CLI command for Safari-authenticated timed TimeTree writes with sync verification.
+- Timed event payload builder with timezone handling and label-policy support.
+
 ## v0.1.1 - 2026-05-15
 
 Small speed/reliability release for Hermes calendar writes.

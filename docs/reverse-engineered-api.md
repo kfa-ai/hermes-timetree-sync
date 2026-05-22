@@ -218,6 +218,36 @@ Notes:
 - The current-user `id` may be returned as either a JSON string or number. Hermes-facing helpers stringify numeric IDs before putting them in `attendees`.
 - Response shape was `{ "event": {...}, "rebalanced": ... }`.
 - Creation was verified by reading back `/events/sync` and matching title/date/all-day fields.
+
+### Create timed event via Safari page context
+
+The local `create-timed` CLI command uses the same `POST /api/v1/calendar/{calendar_id}/event` endpoint, but executes it in Safari's authenticated TimeTree page context rather than direct `httpx` replay. The request body differs from all-day events:
+
+```json
+{
+  "title": "Example timed event",
+  "all_day": false,
+  "start_at": 1779588000000,
+  "start_timezone": "Australia/Melbourne",
+  "end_at": 1779609600000,
+  "end_timezone": "Australia/Melbourne",
+  "category": 1,
+  "type": 0,
+  "label_id": 10,
+  "attendees": ["<current-user-id>"],
+  "alerts": [],
+  "recurrences": [],
+  "location": "",
+  "location_lat": null,
+  "location_lon": null,
+  "url": null,
+  "note": null,
+  "attachment": {"virtual_user_attendees": []},
+  "files": []
+}
+```
+
+The CLI fetches `/api/v1/user` in Safari to fill `attendees`, posts the event with `credentials: include`, then verifies via `/events/sync` by matching event ID/title/start/end and `all_day: false`. Safari must be logged into TimeTree and have Develop → Allow JavaScript from Apple Events enabled.
 - Library create/update helpers can apply a YAML-driven TimeTree label policy by adding `label_id` from an explicit category or inferred title/note.
 - `create-all-day-batch` is a local CLI batching helper, not a separate TimeTree batch endpoint. It performs one current-user lookup and then one `POST /event` per requested all-day event.
 
